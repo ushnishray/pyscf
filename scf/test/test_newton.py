@@ -50,6 +50,28 @@ class KnowValues(unittest.TestCase):
         nr.conv_tol_grad = 1e-5
         self.assertAlmostEqual(nr.kernel(), -75.5783963795897, 9)
 
+    def test_nr_rohf_more_beta(self):
+        from pyscf.scf import rohf
+        mol = gto.M(
+            verbose = 5,
+            output = '/dev/null',
+            atom = [
+            ["O" , (0. , 0.     , 0.)],
+            [1   , (0. , -0.757 , 0.587)],
+            [1   , (0. , 0.757  , 0.587)] ],
+            basis = '6-31g',
+            charge = 1,
+            spin = 1,
+        )
+        mf = scf.RHF(mol)
+        mf.max_cycle = 1
+        mf.kernel()
+        nr = scf.newton(mf)
+        nr.max_cycle = 2
+        nr.conv_tol_grad = 1e-5
+        occ_a, occ_b = rohf._alpha_beta_occ(mf.mo_occ)
+        mo_occ = (occ_b,occ_a)  # more beta electrons than alpha electrons
+        self.assertAlmostEqual(nr.kernel(mf.mo_coeff, mo_occ), -75.5783963795897, 9)
 
     def test_nr_uhf(self):
         mol = gto.M(

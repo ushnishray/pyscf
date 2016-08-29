@@ -368,6 +368,8 @@ def init_guess_by_chkfile(mol, chkfile_name, project=True):
     if scf_rec['mo_coeff'].ndim == 2:
         mo = scf_rec['mo_coeff']
         mo_occ = scf_rec['mo_occ']
+        if mo_occ.ndim == 2:  # ROHF
+            mo_occ = mo_occ[0] + mo_occ[1]
         if numpy.iscomplexobj(mo):
             raise NotImplementedError('TODO: project DHF orbital to RHF orbital')
         dm = make_rdm1(fproj(mo), mo_occ)

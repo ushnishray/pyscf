@@ -205,8 +205,7 @@ def get_occ(mf, mo_energy=None, mo_coeff=None):
 
     if mo_coeff is not None and mf.verbose >= logger.DEBUG:
         ss, s = mf.spin_square((mo_coeff[0][:,mo_occ[0]>0],
-                                  mo_coeff[1][:,mo_occ[1]>0]),
-                                  mf.get_ovlp())
+                                mo_coeff[1][:,mo_occ[1]>0]), mf.get_ovlp())
         logger.debug(mf, 'multiplicity <S^2> = %.8g  2S+1 = %.8g', ss, s)
     return mo_occ
 

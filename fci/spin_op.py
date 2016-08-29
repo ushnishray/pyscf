@@ -62,7 +62,6 @@ def spin_square(fcivec, norb, nelec, mo_coeff=None, ovlp=1):
     UHF-FCI wavefunction
     '''
     from pyscf.fci import direct_spin1
-    neleca, nelecb = _unpack(nelec)
 
     if isinstance(mo_coeff, numpy.ndarray) and mo_coeff.ndim == 2:
         mo_coeff = (mo_coeff, mo_coeff)

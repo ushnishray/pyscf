@@ -76,8 +76,10 @@ def gen_g_hop_rhf(mf, mo_coeff, mo_occ, fock_ao=None):
     return g.reshape(-1), h_op, h_diag.reshape(-1)
 
 def gen_g_hop_rohf(mf, mo_coeff, mo_occ, fock_ao=None):
-    mo_occa = occidxa = mo_occ > 0
-    mo_occb = occidxb = mo_occ ==2
+    from pyscf.scf import rohf
+    occ_a, occ_b = rohf._alpha_beta_occ(mo_occ)
+    mo_occa = occidxa = occ_a > 0
+    mo_occb = occidxb = occ_b > 0
     ug, uh_op, uh_diag = gen_g_hop_uhf(mf, (mo_coeff,)*2, (mo_occa,mo_occb), fock_ao)
 
     viridxa = ~occidxa
@@ -414,7 +416,7 @@ def kernel(mf, mo_coeff, mo_occ, conv_tol=1e-10, conv_tol_grad=None,
 
 
 def newton(mf):
-    import pyscf.scf
+    from pyscf.scf import hf, rohf, uhf, dhf
     from pyscf.mcscf import mc1step_symm
     if mf.__class__.__doc__ is None:
         doc = ''
@@ -539,7 +541,7 @@ def newton(mf):
             return gen_g_hop_rhf(self, mo_coeff, mo_occ, fock_ao)
 
         def update_rotate_matrix(self, dx, mo_occ, u0=1):
-            dr = pyscf.scf.hf.unpack_uniq_var(dx, mo_occ)
+            dr = hf.unpack_uniq_var(dx, mo_occ)
             if self._scf.mol.symmetry:
                 dr = mc1step_symm._symmetrize(dr, self._orbsym, None)
             return numpy.dot(u0, expmat(dr))
@@ -555,7 +557,7 @@ def newton(mf):
                           _effective_svd(u, 1e-5))
             return mo
 
-    if isinstance(mf, pyscf.scf.rohf.ROHF):
+    if isinstance(mf, rohf.ROHF):
         class ROHF(RHF):
             __doc__ = RHF.__doc__
             def gen_g_hop(self, mo_coeff, mo_occ, fock_ao=None, h1e=None):
@@ -578,14 +580,44 @@ def newton(mf):
 
             def eig(self, fock, s1e):
                 f = (self._focka_ao, self._fockb_ao)
-                f = pyscf.scf.rohf.get_roothaan_fock(f, self._dm_ao, s1e)
+                f = rohf.get_roothaan_fock(f, self._dm_ao, s1e)
                 return self._scf.eig(f, s1e)
                 #fc = numpy.dot(fock[0], mo_coeff)
                 #mo_energy = numpy.einsum('pk,pk->k', mo_coeff, fc)
                 #return mo_energy
+
+            def update_rotate_matrix(self, dx, mo_occ, u0=1):
+                occ_a, occ_b = rohf._alpha_beta_occ(mo_occ)
+                occidxa = occ_a > 0
+                occidxb = occ_b > 0
+                viridxa = ~occidxa
+                viridxb = ~occidxb
+                uniq_var_a = viridxa.reshape(-1,1) & occidxa
+                uniq_var_b = viridxb.reshape(-1,1) & occidxb
+                uniq_ab = uniq_var_a | uniq_var_b
+                nmo = len(occidxa)
+                dr = numpy.zeros((nmo,nmo))
+                dr[uniq_ab] = dx
+                dr = dr - dr.T
+                if self._scf.mol.symmetry:
+                    dr = mc1step_symm._symmetrize(dr, self._orbsym, None)
+                return numpy.dot(u0, expmat(dr))
+
+            def rotate_mo(self, mo_coeff, u, log=None):
+                mo = numpy.dot(mo_coeff, u)
+                if log is not None and log.verbose >= logger.DEBUG:
+                    occ_a, occ_b = rohf._alpha_beta_occ(self.mo_occ)
+                    occidx = (occ_a>0) | (occ_b>0)
+                    s = reduce(numpy.dot, (mo[:,occidx].T, self.get_ovlp(),
+                                           self.mo_coeff[:,occidx]))
+                    log.debug('Overlap to initial guess, SVD = %s',
+                              _effective_svd(s, 1e-5))
+                    log.debug('Overlap to last step, SVD = %s',
+                              _effective_svd(u, 1e-5))
+                return mo
         return ROHF()
 
-    elif isinstance(mf, pyscf.scf.uhf.UHF):
+    elif isinstance(mf, uhf.UHF):
         class UHF(RHF):
             __doc__ = RHF.__doc__
             def gen_g_hop(self, mo_coeff, mo_occ, fock_ao=None, h1e=None):
@@ -628,7 +660,7 @@ def newton(mf):
                                       numpy.dot(mo_coeff[1], u[1])))
         return UHF()
 
-    elif isinstance(mf, pyscf.scf.dhf.UHF):
+    elif isinstance(mf, dhf.UHF):
         raise RuntimeError('Not support Dirac-HF')
 
     else:

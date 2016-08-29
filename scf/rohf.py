@@ -82,7 +82,7 @@ def get_fock(mf, h1e, s1e, vhf, dm, cycle=-1, adiis=None,
 
 def get_roothaan_fock(focka_fockb, dma_dmb, s):
     '''Roothaan's effective fock.
-    Ref. http://www-theor.ch.cam.ac.uk/people/ross/thesis/node15.html
+    Ref.  https://arxiv.org/abs/1008.1607
 
     ======== ======== ====== =========
     space     closed   open   virtual
@@ -136,15 +136,17 @@ def get_occ(mf, mo_energy=None, mo_coeff=None):
         mo_ea = numpy.einsum('ik,ik->k', mo_coeff, mf._focka_ao.dot(mo_coeff))
         mo_eb = numpy.einsum('ik,ik->k', mo_coeff, mf._fockb_ao.dot(mo_coeff))
     nmo = mo_ea.size
-    mo_occ = numpy.zeros(nmo)
     ncore = mf.nelec[1]
     nocc  = mf.nelec[0]
     nopen = nocc - ncore
     mo_occ = _fill_rohf_occ(mo_energy, mo_ea, mo_eb, ncore, nopen)
+    occ_a, occ_b = _alpha_beta_occ(mo_occ)
+    occ_a = occ_a > 0
+    occ_b = occ_b > 0
 
     if mf.verbose >= logger.INFO and nocc < nmo and ncore > 0:
-        ehomo = max(mo_energy[mo_occ> 0])
-        elumo = min(mo_energy[mo_occ==0])
+        ehomo = max(mo_energy[occ_a | occ_b])
+        elumo = min(mo_energy[~(occ_a|occ_b)])
         if ehomo+1e-3 > elumo:
             logger.warn(mf.mol, '!! HOMO %.15g >= LUMO %.15g',
                         ehomo, elumo)
@@ -152,9 +154,9 @@ def get_occ(mf, mo_energy=None, mo_coeff=None):
             logger.info(mf, '  HOMO = %.15g  LUMO = %.15g',
                         ehomo, elumo)
         if nopen > 0:
-            core_idx = mo_occ == 2
-            open_idx = mo_occ == 1
-            vir_idx = mo_occ == 0
+            core_idx = occ_a & occ_b
+            open_idx = occ_a ^ occ_b
+            vir_idx  = ~(occ_a|occ_b)
             logger.debug(mf, '                  Roothaan           | alpha              | beta')
             logger.debug(mf, '  Highest 2-occ = %18.15g | %18.15g | %18.15g',
                          max(mo_energy[core_idx]),
@@ -201,8 +203,9 @@ def get_grad(mo_coeff, mo_occ, fock=None):
     [ oc oo ov ]
     [ vc vo vv ]
     '''
-    occidxa = mo_occ > 0
-    occidxb = mo_occ == 2
+    occ_a, occ_b = _alpha_beta_occ(mo_occ)
+    occidxa = occ_a > 0
+    occidxb = occ_b > 0
     viridxa = ~occidxa
     viridxb = ~occidxb
     uniq_var_a = viridxa.reshape(-1,1) & occidxa
@@ -217,13 +220,24 @@ def get_grad(mo_coeff, mo_occ, fock=None):
     return g[uniq_var_a | uniq_var_b]
 
 def make_rdm1(mo_coeff, mo_occ):
-    '''One-particle densit matrix.  mo_occ is a 1D array, with occupancy 1 or 2.
+    '''One-particle densit matrix.
+
+    Args:
+        mo_occ can be either 1D array with occupancy 1 (only alpha) or 2 (alpha+beta),
+        or (2, nmo) array for alpha and beta spins separately.
     '''
-    mo_a = mo_coeff[:,mo_occ>0]
-    mo_b = mo_coeff[:,mo_occ==2]
-    dm_a = numpy.dot(mo_a, mo_a.T)
-    dm_b = numpy.dot(mo_b, mo_b.T)
+    occ_a, occ_b = _alpha_beta_occ(mo_occ)
+    dm_a = numpy.dot(mo_coeff*occ_a, mo_coeff.T)
+    dm_b = numpy.dot(mo_coeff*occ_b, mo_coeff.T)
     return numpy.array((dm_a, dm_b))
+
+def _alpha_beta_occ(mo_occ):
+    if isinstance(mo_occ, numpy.ndarray) and mo_occ.ndim == 1:
+        occ_b = mo_occ == 2
+        occ_a = mo_occ - occ_b
+    else:
+        occ_a, occ_b = mo_occ
+    return occ_a, occ_b
 
 def energy_elec(mf, dm=None, h1e=None, vhf=None):
     if dm is None: dm = mf.make_rdm1()
@@ -244,8 +258,9 @@ def analyze(mf, verbose=logger.DEBUG):
     from pyscf.lo import orth
     from pyscf.tools import dump_mat
     mo_energy = mf.mo_energy
-    mo_occ = mf.mo_occ
     mo_coeff = mf.mo_coeff
+    occ_a, occ_b = _alpha_beta_occ(mf.mo_occ)
+    mo_occ = occ_a + occ_b
     if isinstance(verbose, logger.Logger):
         log = verbose
     else:
@@ -253,15 +268,15 @@ def analyze(mf, verbose=logger.DEBUG):
 
     log.note('**** MO energy ****')
     if mf._focka_ao is None:
-        for i,c in enumerate(mo_occ):
-            log.note('MO #%-3d energy= %-18.15g occ= %g', i+1, mo_energy[i], c)
+        for i,e in enumerate(mo_energy):
+            log.note('MO #%-3d energy= %-18.15g occ= %g', i+1, e, mo_occ[i])
     else:
         mo_ea = numpy.einsum('ik,ik->k', mo_coeff, mf._focka_ao.dot(mo_coeff))
         mo_eb = numpy.einsum('ik,ik->k', mo_coeff, mf._fockb_ao.dot(mo_coeff))
         log.note('                Roothaan           | alpha              | beta')
-        for i,c in enumerate(mo_occ):
+        for i,e in enumerate(mo_energy):
             log.note('MO #%-3d energy= %-18.15g | %-18.15g | %-18.15g occ= %g',
-                     i+1, mo_energy[i], mo_ea[i], mo_eb[i], c)
+                     i+1, e, mo_ea[i], mo_eb[i], mo_occ[i])
     ovlp_ao = mf.get_ovlp()
     if verbose >= logger.DEBUG:
         log.debug(' ** MO coefficients (expansion on meta-Lowdin AOs) **')
@@ -269,7 +284,7 @@ def analyze(mf, verbose=logger.DEBUG):
         orth_coeff = orth.orth_ao(mf.mol, 'meta_lowdin', s=ovlp_ao)
         c = reduce(numpy.dot, (orth_coeff.T, ovlp_ao, mo_coeff))
         dump_mat.dump_rec(mf.stdout, c, label, start=1)
-    dm = mf.make_rdm1(mo_coeff, mo_occ)
+    dm = mf.make_rdm1(mo_coeff, mf.mo_occ)
     return mf.mulliken_meta(mf.mol, dm, s=s, verbose=log)
 
 def canonicalize(mf, mo_coeff, mo_occ, fock=None):
@@ -281,7 +296,8 @@ def canonicalize(mf, mo_coeff, mo_occ, fock=None):
         fock = mf.get_hcore() + mf.get_jk(mol, dm)
     if isinstance(fock, numpy.ndarray) and fock.ndim == 3:
         fock = get_roothaan_fock(fock, dm, mf.get_ovlp())
-    return hf.canonicalize(mf, mo_coeff, mo_occ, fock)
+    occ_a, occ_b = _alpha_beta_occ(mo_occ)
+    return hf.canonicalize(mf, mo_coeff, occ_a+occ_b, fock)
 
 # use UHF init_guess, get_veff, diis, and intermediates such as fock, vhf, dm
 # keep mo_energy, mo_coeff, mo_occ as RHF structure
@@ -374,4 +390,5 @@ class ROHF(hf.RHF):
 
     analyze = analyze
     canonicalize = canonicalize
+
 
