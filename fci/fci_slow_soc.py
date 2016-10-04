@@ -289,23 +289,66 @@ def kernel(h1e, hsoc, g2e, norb, nelec):
 
     precond = lambda x, e, *args: x/(hdiag-e+1e-4)
     e, c = pyscf.lib.davidson(hop, ci0.reshape(-1), precond)
-    return e
+    return e, c
 
 
 # dm_pq = <|p^+ q|>
 def make_rdm1(fcivec, norb, nelec, opt=None):
-    link_index = gen_linkstr_index(range(norb), nelec//2)
-    na = num_strings(norb, nelec//2)
-    fcivec = fcivec.reshape(na,na)
-    rdm1 = numpy.zeros((norb,norb))
-    for str0, tab in enumerate(link_index):
-        for a, i, str1, sign in link_index[str0]:
-            rdm1[a,i] += sign * numpy.dot(fcivec[str1],fcivec[str0])
-    for str0, tab in enumerate(link_index):
-        for k in range(na):
-            for a, i, str1, sign in link_index[str0]:
-                rdm1[a,i] += sign * fcivec[k,str1]*fcivec[k,str0]
-    return rdm1
+
+    rdm1 = numpy.zeros((2*norb,2*norb))    
+    goffset = 0
+
+    for neleca in range(nelec+1):
+        nelecb = nelec - neleca
+
+        link_indexa = cistring_soc.gen_linkstr_index_o0(range(norb), neleca)
+        link_indexb = cistring_soc.gen_linkstr_index_o0(range(norb), nelecb)
+        
+        na = cistring_soc.num_strings(norb, neleca)
+        nb = cistring_soc.num_strings(norb, nelecb)
+        ci0 = fcivec[goffset:goffset+na*nb].reshape(na,nb)
+
+	#sector a,a
+	#spin a
+        for str0, tab in enumerate(link_indexa):
+            for a, i, str1, sign in tab:
+                rdm1[a,i] += sign * numpy.dot(ci0[str1],ci0[str0])
+        
+	#sector b,b
+	#spin b
+	for str0, tab in enumerate(link_indexb):
+            for k in range(na):
+                for a, i, str1, sign in tab:
+                    rdm1[norb+a,norb+i] += sign * ci0[k,str1]*ci0[k,str0]
+
+	#sector a,b
+	if(nelecb>0):	
+  	    #c+_a c_b
+            link_indexa, vv = cistring_soc.gen_linkstr_index_o0_soc(range(norb), neleca, nelecb, 0)
+            nna = cistring_soc.num_strings(norb, neleca+1)
+            nnb = cistring_soc.num_strings(norb, nelecb-1)
+            ciT = fcivec[goffset+na*nb:goffset+na*nb+nna*nnb].reshape(nna,nnb)
+            for str0, tab in enumerate(link_indexa):
+                for a, i, target, sign in tab:
+		    for tstr in vv[str0]:
+		    #print a,i,target,sign, str0, vv[str0], ci0[tstr,str0], ciT[target[0],target[1]]
+		        rdm1[a,norb+i] += sign * ci0[tstr,str0] * ciT[target[0],target[1]]
+
+
+	if(neleca>0):
+	    #c+_b c_a
+            link_indexb,vv = cistring_soc.gen_linkstr_index_o0_soc(range(norb), neleca, nelecb, 1)
+            nna = cistring_soc.num_strings(norb, neleca-1)
+            nnb = cistring_soc.num_strings(norb, nelecb+1)
+            ciT = fcivec[goffset-nna*nnb:goffset].reshape(nna,nnb)
+            for str0, tab in enumerate(link_indexb):
+                for a, i, target, sign in tab:
+                    for tstr in vv[str0]:
+     		        rdm1[a+norb,i] += sign * ci0[str0,tstr] * ciT[target[0],target[1]]
+	
+	goffset += na*nb   
+ 
+    return rdm1 
 
 # dm_pq,rs = <|p^+ q r^+ s|>
 def make_rdm12(fcivec, norb, nelec, opt=None):
@@ -364,19 +407,23 @@ if __name__ == '__main__':
 #        ['H', ( 0., 1.    , 1.   )],
 #    ]
 
-    mol.atom = [['H', (1.*i,0,0)] for i in range(0,12)]     
+    mol.atom = [['H', (1.*i,0,0)] for i in range(0,6)]     
     mol.basis = 'sto-3g'
     mol.build()
 
     m = scf.RHF(mol)
     m.kernel()
     norb = m.mo_coeff.shape[1]
-    nelec = mol.nelectron - 2
+    nelec = mol.nelectron 
     h1e = reduce(numpy.dot, (m.mo_coeff.T, m.get_hcore(), m.mo_coeff))
     eri = ao2mo.incore.general(m._eri, (m.mo_coeff,)*4, compact=False)
     eri = eri.reshape(norb,norb,norb,norb)
 
-    e1 = kernel(h1e, [], eri, norb, nelec)
-
+    e1, psi0 = kernel(h1e, [], eri, norb, nelec)
     print e1
+	
+    rdm1 = make_rdm1(psi0,norb,nelec)
+    print rdm1
+
+
 #    print(e1, e1 - -7.9766331504361414)
