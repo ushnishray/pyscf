@@ -134,7 +134,7 @@ def make_hdiag(h1e, g2e, norb, nelec, opt=None):
     link_indexb = cistring.gen_linkstr_index_o0(range(norb), nelecb)
     occslista = [tab[:neleca,0] for tab in link_indexa]
     occslistb = [tab[:nelecb,0] for tab in link_indexb]
-    g2e = ao2mo.restore(1, g2e, norb)
+    g2e = pyscf.ao2mo.restore(1, g2e, norb)
     diagj = numpy.einsum('iijj->ij',g2e)
     diagk = numpy.einsum('ijji->ij',g2e)
     hdiag = []
@@ -161,13 +161,13 @@ def kernel(h1e, g2e, norb, nelec):
     hdiag = make_hdiag(h1e, g2e, norb, nelec)
     precond = lambda x, e, *args: x/(hdiag-e+1e-4)
     e, c = pyscf.lib.davidson(hop, ci0.reshape(-1), precond)
-    return e
+    return e, c
 
 
 # dm_pq = <|p^+ q|>
 def make_rdm1(fcivec, norb, nelec, opt=None):
-    link_index = gen_linkstr_index(range(norb), nelec//2)
-    na = num_strings(norb, nelec//2)
+    link_index = cistring.gen_linkstr_index(range(norb), nelec//2)
+    na = cistring.num_strings(norb, nelec//2)
     fcivec = fcivec.reshape(na,na)
     rdm1 = numpy.zeros((norb,norb))
     for str0, tab in enumerate(link_index):
