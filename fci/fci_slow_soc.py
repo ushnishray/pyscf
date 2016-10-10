@@ -208,7 +208,7 @@ def make_hdiag_soc(h1e, g2e, norb, nelec, opt=None):
     '''
     hdiag = []
 
-    g2e = ao2mo.restore(1, g2e, norb)
+    g2e = pyscf.ao2mo.restore(1, g2e, norb)
     diagj = numpy.einsum('iijj->ij',g2e)
     diagk = numpy.einsum('ijji->ij',g2e)
 
