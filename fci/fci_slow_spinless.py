@@ -37,8 +37,12 @@ def contract_2e(eri, fcivec, norb, nelec, opt=None):
     fcinew = numpy.zeros_like(ci0)
     for str0, tab in enumerate(link_indexa):
         for a, i, str1, sign in tab:
-            fcinew[str1] += sign * t1[a,i,str0]*0.5
-    
+            fcinew[str1] += sign * t1[a,i,str0]
+
+    print "-------------"   
+    print fcivec
+    print fcinew
+
     return fcinew.reshape(fcivec.shape)
 
 
@@ -62,6 +66,7 @@ def make_hdiag(h1e, g2e, norb, nelec, opt=None):
    #g2e = pyscf.ao2mo.restore(1, g2e, norb)
     diagj = numpy.einsum('iijj->ij',g2e)
     diagk = numpy.einsum('ijji->ij',g2e)
+
     hdiag = []
     for aocc in occslista:
             e1 = h1e[aocc,aocc].sum() 
@@ -76,14 +81,14 @@ def kernel(h1e, g2e, norb, nelec):
 
     na = cistring.num_strings(norb, nelec)
     ci0 = numpy.zeros(na)
-    ci0[0] = 1
+    ci0[0] = 1.
 
     def hop(c):
         hc = contract_2e(h2e, c, norb, nelec)
         return hc.reshape(-1)
     hdiag = make_hdiag(h1e, g2e, norb, nelec)
     precond = lambda x, e, *args: x/(hdiag-e+1e-4)
-    e, c = pyscf.lib.davidson(hop, ci0, precond)
+    e, c = pyscf.lib.davidson(hop, ci0, precond, verbose=5)
     return e, c
 
 
@@ -141,27 +146,20 @@ if __name__ == '__main__':
     from pyscf import scf
     from pyscf import ao2mo
 
-    mol = gto.Mole()
-    mol.verbose = 0
-    mol.output = None
-    mol.atom = [
-        ['H', ( 1.,-1.    , 0.   )],
-        ['H', ( 0.,-1.    ,-1.   )],
-        ['H', ( 1.,-0.5   ,-1.   )],
-        ['H', ( 0.,-0.    ,-1.   )],
-        ['H', ( 1.,-0.5   , 0.   )],
-        ['H', ( 0., 1.    , 1.   )],
-    ]
-    mol.basis = 'sto-3g'
-    mol.build()
+    h1e = numpy.zeros([4,4]) 
+    for i in range(0,4):
+	h1e[i,i] = 0.01
+ 	h1e[i,(i+1)%4] = -1.0
+ 	h1e[i,(i-1)%4] = -1.0
 
-    m = scf.RHF(mol)
-    m.kernel()
-    norb = m.mo_coeff.shape[1]
-    nelec = mol.nelectron - 2
-    h1e = reduce(numpy.dot, (m.mo_coeff.T, m.get_hcore(), m.mo_coeff))
-    eri = ao2mo.incore.general(m._eri, (m.mo_coeff,)*4, compact=False)
-    eri = eri.reshape(norb,norb,norb,norb)
+    eri = numpy.zeros([4,4,4,4])
+    for i in range(0,4):
+        eri[i,i,i,i] = 2.0
 
-    e1 = kernel(h1e, eri, norb, nelec)
-    print(e1, e1 - -7.9766331504361414)
+    e1,c = kernel(h1e, eri, 4, 2)
+   
+    print "xxxxxxxxxxxxxxxxxxx" 
+    print e1
+    print c
+
+
