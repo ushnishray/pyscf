@@ -15,7 +15,7 @@ def contract_1e(f1e, fcivec, norb, nelec):
     t1 = numpy.zeros((norb,norb,na))
     for str0, tab in enumerate(link_indexa):
         for a, i, str1, sign in tab:
-            t1[a,i,str1] += sign * ci0[str0]
+            t1[a,i,str1] += sign * fcivec[str0]
     
     fcinew = numpy.dot(f1e.reshape(-1), t1.reshape(-1,na))
     return fcinew.reshape(fcivec.shape)
@@ -38,10 +38,6 @@ def contract_2e(eri, fcivec, norb, nelec, opt=None):
     for str0, tab in enumerate(link_indexa):
         for a, i, str1, sign in tab:
             fcinew[str1] += sign * t1[a,i,str0]
-
-    print "-------------"   
-    print fcivec
-    print fcinew
 
     return fcinew.reshape(fcivec.shape)
 
@@ -77,18 +73,18 @@ def make_hdiag(h1e, g2e, norb, nelec, opt=None):
 
 def kernel(h1e, g2e, norb, nelec):
 
-    h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)
-
+    h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)    
     na = cistring.num_strings(norb, nelec)
-    ci0 = numpy.zeros(na)
-    ci0[0] = 1.
+    
+    ci0 = numpy.random.random(na)
+    ci0 /= numpy.linalg.norm(ci0)
 
     def hop(c):
         hc = contract_2e(h2e, c, norb, nelec)
         return hc.reshape(-1)
     hdiag = make_hdiag(h1e, g2e, norb, nelec)
     precond = lambda x, e, *args: x/(hdiag-e+1e-4)
-    e, c = pyscf.lib.davidson(hop, ci0, precond, verbose=5)
+    e, c = pyscf.lib.davidson(hop, ci0, precond, max_space=100)
     return e, c
 
 
@@ -101,10 +97,10 @@ def make_rdm1(fcivec, norb, nelec, opt=None):
     
     for str0, tab in enumerate(link_index):
         for a, i, str1, sign in link_index[str0]:
-            rdm1[a,i] += sign * numpy.dot(fcivec[str1],fcivec[str0])
+            rdm1[a,i] += sign * numpy.dot(fcivec[str1].conj(),fcivec[str0])
     for str0, tab in enumerate(link_index):
         for a, i, str1, sign in link_index[str0]:
-            rdm1[a,i] += sign * numpy.dot(fcivec[:,str1],fcivec[:,str0])
+            rdm1[a,i] += sign * numpy.dot(fcivec[:,str1].conj(),fcivec[:,str0])
     return rdm1
 
 # dm_pq,rs = <|p^+ q r^+ s|>
@@ -114,17 +110,17 @@ def make_rdm12(fcivec, norb, nelec, opt=None):
 
     rdm1 = numpy.zeros((norb,norb))
     rdm2 = numpy.zeros((norb,norb,norb,norb))
-    for str0, tab in enumerate(link_index):
-        t1 = numpy.zeros((na,norb,norb))
+    t1 = numpy.zeros((na,norb,norb))
+    for str0, tab in enumerate(link_index):     
         for a, i, str1, sign in link_index[str0]:
             t1[str1,i,a] += sign * fcivec[str0]
 
-        rdm1 += numpy.einsum('m,mij->ij', fcivec, t1)
-        # i^+ j|0> => <0|j^+ i, so swap i and j
-        rdm2 += numpy.einsum('mij,mkl->jikl', t1, t1)
+    rdm1 += numpy.einsum('m,mij->ij', fcivec.conj(), t1)
+    #i^+ j|0> => <0|j^+ i, so swap i and j
+    rdm2 += numpy.einsum('mij,mkl->jikl', t1.conj(), t1)
+    
     return reorder_rdm(rdm1, rdm2)
-
-
+    
 def reorder_rdm(rdm1, rdm2):
     '''reorder from rdm2(pq,rs) = <E^p_q E^r_s> to rdm2(pq,rs) = <e^{pr}_{qs}>.
     Although the "reoredered rdm2" is still in Mulliken order (rdm2[e1,e1,e2,e2]),
@@ -154,7 +150,8 @@ if __name__ == '__main__':
 
     eri = numpy.zeros([4,4,4,4])
     for i in range(0,4):
-        eri[i,i,i,i] = 2.0
+ 	j = (i+1)%4
+        eri[i,j,i,j] = 0.0
 
     e1,c = kernel(h1e, eri, 4, 2)
    

@@ -209,10 +209,10 @@ def reorder_rdm(rdm1, rdm2):
     it is the right 2e DM (dotting it with int2e gives the energy of 2e parts)
     '''
     nmo = rdm1.shape[0]
-    if inplace:
-        rdm2 = rdm2.reshape(nmo,nmo,nmo,nmo)
-    else:
-        rdm2 = rdm2.copy().reshape(nmo,nmo,nmo,nmo)
+ #   if inplace:
+ #       rdm2 = rdm2.reshape(nmo,nmo,nmo,nmo)
+ #   else:
+    rdm2 = rdm2.copy().reshape(nmo,nmo,nmo,nmo)
     for k in range(nmo):
         rdm2[:,k,k,:] -= rdm1
     return rdm1, rdm2
