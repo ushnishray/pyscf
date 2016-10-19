@@ -149,9 +149,15 @@ def gen_linkstr_index_o0_soc(orb_list, neleca, nelecb, aorder,  strs=None):
 		strx = strsap[p] ^ (1<<i) 	
 		stro = (str0 | strx<<ns)*(1-aorder) + (str0<<ns | strx)*aorder 		
 		strf = (strt | strsap[p]<<ns)*(1-aorder) + (strt<<ns | strsap[p])*aorder
+		
+		'''
+		lup = bin(strx).count('1')*(1-aorder) + (bin(str0).count('1')-1)*aorder
+		phase = (-1)**(bin((2**i-1) & strx).count('1') + bin((2**j-1) & str0).count('1') + lup + 1)
+		assert(phase,parity(stro,strf))
+		print str0,j,strx,i,stro,"=>",strt,strsap[p],strf,"#",parity(stro,strf), phase
+		'''
 
-#		print str0,j,strx,i,stro,"=>",strt,strsa[p],strf,"#"
-                pumpmap.append((i, j, target, parity(stro,strx)))
+                pumpmap.append((i, j, target, parity(stro,strf)))
 		srcvec.append(strdict[strx])
 
         return [pumpmap,srcvec]

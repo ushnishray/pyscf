@@ -14,7 +14,7 @@ from pyscf.fci import cistring_soc
 
 def contract_1esoc_soc(f1e, fcivec, norb, nelec):
 
-    fcinew = numpy.zeros_like(fcivec)   
+    fcinew = numpy.zeros_like(fcivec,dtype=numpy.complex64)   
     goffset = 0
  
     for neleca in range(nelec+1):
@@ -29,27 +29,27 @@ def contract_1esoc_soc(f1e, fcivec, norb, nelec):
             link_index, vv = cistring_soc.gen_linkstr_index_o0_soc(range(norb), neleca, nelecb, 0)
             nna = cistring_soc.num_strings(norb, neleca+1)
             nnb = cistring_soc.num_strings(norb, nelecb-1)
-	    t1 = numpy.zeros((norb,norb,nna,nnb))
+	    t1 = numpy.zeros((norb,norb,nna,nnb),dtype=numpy.complex64)
             for str0, tab in enumerate(link_index):
-                for a, i, target, sign in tab:
-		    t1[a,i,target[0],target[1]] += sign * ci0[vv[str0],str0]
+                for loc, (a, i, target, sign) in enumerate(tab):
+		    t1[a,i,target[0],target[1]] += sign * ci0[vv[str0][loc],str0]
             ci0 = numpy.dot(f1e[0].reshape(-1), t1.reshape(-1,nna*nnb))
-            fcinew[goffset+na*nb:goffset+na*nb+nna*nnb] = ci0.reshape(-1)
+            fcinew[goffset+na*nb:goffset+na*nb+nna*nnb] += ci0.reshape(-1)
 
 	#c+_b c_a
 	if(neleca>0):
             ci0 = fcivec[goffset:goffset+na*nb].reshape(na,nb)
 
-            link_index = cistring_soc.gen_linkstr_index_o0_soc(range(norb), neleca, nelecb, 1)
+            link_index, vv = cistring_soc.gen_linkstr_index_o0_soc(range(norb), neleca, nelecb, 1)
             nna = cistring_soc.num_strings(norb, neleca-1)
             nnb = cistring_soc.num_strings(norb, nelecb+1)
-	    t1 = numpy.zeros((norb,norb,nna,nnb))
-            for str0, tab in enumerate(link_indexb):
-                for a, i, target, sign in tab:
-                    t1[a,i,target[0],target[1]] += sign * ci0[str0,vv[str0]]
+	    t1 = numpy.zeros((norb,norb,nna,nnb),dtype=numpy.complex64)
+            for str0, tab in enumerate(link_index):
+                for loc, (a, i, target, sign) in enumerate(tab):
+                    t1[a,i,target[0],target[1]] += sign * ci0[str0,vv[str0][loc]]
 
             ci0 = numpy.dot(f1e[1].reshape(-1), t1.reshape(-1,nna*nnb))
-            fcinew[goffset-nna*nnb:goffset] = ci0.reshape(-1)
+            fcinew[goffset-nna*nnb:goffset] += ci0.reshape(-1)
 	
         goffset += na*nb   
  
@@ -57,7 +57,7 @@ def contract_1esoc_soc(f1e, fcivec, norb, nelec):
 
 def contract_1e_soc(f1e, fcivec, norb, nelec):
 
-    fcinew = numpy.zeros_like(fcivec)   
+    fcinew = numpy.zeros_like(fcivec,dtype=numpy.complex64)   
     goffset = 0
  
     for neleca in range(nelec+1):
@@ -70,7 +70,7 @@ def contract_1e_soc(f1e, fcivec, norb, nelec):
         nb = cistring_soc.num_strings(norb, nelecb)
         ci0 = fcivec[goffset:goffset+na*nb].reshape(na,nb)
 
-        t1 = numpy.zeros((norb,norb,na,nb))
+        t1 = numpy.zeros((norb,norb,na,nb),dtype=numpy.complex64)
         for str0, tab in enumerate(link_indexa):
             for a, i, str1, sign in tab:
                 t1[a,i,str1] += sign * ci0[str0]
@@ -87,7 +87,7 @@ def contract_1e_soc(f1e, fcivec, norb, nelec):
 
 def contract_2e_soc(eri, fcivec, norb, nelec, opt=None):
    
-    fcinew = numpy.zeros_like(fcivec)
+    fcinew = numpy.zeros_like(fcivec,dtype=numpy.complex64)
     goffset = 0
 
     for neleca in range(nelec+1):
@@ -100,7 +100,7 @@ def contract_2e_soc(eri, fcivec, norb, nelec, opt=None):
     	link_indexa = cistring_soc.gen_linkstr_index_o0(range(norb), neleca)
 	link_indexb = cistring_soc.gen_linkstr_index_o0(range(norb), nelecb)
 
-    	t1 = numpy.zeros((norb,norb,na,nb))
+    	t1 = numpy.zeros((norb,norb,na,nb),dtype=numpy.complex64)
     	for str0, tab in enumerate(link_indexa):
 	    for a, i, str1, sign in tab:
 	        t1[a,i,str1] += sign * ci0[str0]
@@ -111,7 +111,7 @@ def contract_2e_soc(eri, fcivec, norb, nelec, opt=None):
 
     	t1 = numpy.dot(eri.reshape(norb*norb,-1), t1.reshape(norb*norb,-1))
     	t1 = t1.reshape(norb,norb,na,nb)
-    	ci0 = numpy.zeros_like(ci0)
+    	ci0 = numpy.zeros_like(ci0,dtype=numpy.complex64)
     	for str0, tab in enumerate(link_indexa):
 	    for a, i, str1, sign in tab:
 	        ci0[str1] += sign * t1[a,i,str0]
@@ -127,7 +127,7 @@ def contract_2e_soc(eri, fcivec, norb, nelec, opt=None):
 def contract_2e_hubbard_soc(u, fcivec, norb, nelec, opt=None):
     u_aa, u_ab, u_bb = u
 
-    fcinew = numpy.zeros_like(fcivec)
+    fcinew = numpy.zeros_like(fcivec,dtype=numpy.complex64)
     goffset = 0
 
     for neleca in range(nelec+1):
@@ -140,8 +140,8 @@ def contract_2e_hubbard_soc(u, fcivec, norb, nelec, opt=None):
         nb = cistring.num_strings(norb, nelecb)
    
         ci0 = fcivec[goffset:goffset+na*nb].reshape(na,nb)
-        t1a = numpy.zeros((norb,na,nb))
-        t1b = numpy.zeros((norb,na,nb))
+        t1a = numpy.zeros((norb,na,nb),dtype=numpy.complex64)
+        t1b = numpy.zeros((norb,na,nb),dtype=numpy.complex64)
 
         for addr, s in enumerate(strsa):
             for i in range(norb):
@@ -152,7 +152,7 @@ def contract_2e_hubbard_soc(u, fcivec, norb, nelec, opt=None):
                 if s & (1<<i):
                     t1b[i,:,addr] += ci0[:,addr]
 
-	ci0 = numpy.zeros_like(ci0)
+	ci0 = numpy.zeros_like(ci0,dtype=numpy.complex64)
         if u_aa != 0:
         # u * n_alpha^+ n_alpha
             for addr, s in enumerate(strsa):
@@ -262,19 +262,14 @@ def kernel(h1e, hsoc, g2e, norb, nelec):
     h2e = absorb_h1e_soc(h1e, g2e, norb, nelec, .5)
 
     def hop(c):
-        hc = contract_2e_soc(h2e, c, norb, nelec)
+        hc = contract_2e_soc(h2e, c, norb, nelec) + contract_1esoc_soc(hsoc,c,norb,nelec)
         return hc.reshape(-1)
 
     e = 0.0
     hdiag = make_hdiag_soc(h1e, g2e, norb, nelec)
 
-    f = open('test.txt','w')	
-    for x in hdiag:
-	f.write(str(x) + '\n')
-    f.close()
-
     na = hdiag.shape[0]
-    ci0 = numpy.zeros(na)
+    ci0 = numpy.zeros(na,numpy.complex64)
 
     #Need to allow mixing otherwise no overlap
     #This will not be an issue with SOC switched on	
@@ -295,7 +290,7 @@ def kernel(h1e, hsoc, g2e, norb, nelec):
 # dm_pq = <|p^+ q|>
 def make_rdm1(fcivec, norb, nelec, opt=None):
 
-    rdm1 = numpy.zeros((2*norb,2*norb))    
+    rdm1 = numpy.zeros((2*norb,2*norb),dtype=numpy.complex64)    
     goffset = 0
 
     for neleca in range(nelec+1):
@@ -356,10 +351,10 @@ def make_rdm12(fcivec, norb, nelec, opt=None):
     na = num_strings(norb, nelec//2)
     fcivec = fcivec.reshape(na,na)
 
-    rdm1 = numpy.zeros((norb,norb))
+    rdm1 = numpy.zeros((norb,norb),dtype=numpy.complex64)
     rdm2 = numpy.zeros((norb,norb,norb,norb))
     for str0, tab in enumerate(link_index):
-        t1 = numpy.zeros((na,norb,norb))
+        t1 = numpy.zeros((na,norb,norb),dtype=numpy.complex64)
         for a, i, str1, sign in link_index[str0]:
             for k in range(na):
                 t1[k,i,a] += sign * fcivec[str1,k]
