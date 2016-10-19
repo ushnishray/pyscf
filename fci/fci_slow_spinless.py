@@ -84,7 +84,8 @@ def kernel(h1e, g2e, norb, nelec):
         return hc.reshape(-1)
     hdiag = make_hdiag(h1e, g2e, norb, nelec)
     precond = lambda x, e, *args: x/(hdiag-e+1e-4)
-    e, c = pyscf.lib.davidson(hop, ci0, precond, max_space=100)
+#    e, c = pyscf.lib.davidson(hop, ci0, precond, max_space=100)
+    e, c = pyscf.lib.davidson(hop, ci0, precond)
     return e, c
 
 
