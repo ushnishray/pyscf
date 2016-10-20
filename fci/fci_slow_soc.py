@@ -81,7 +81,7 @@ def contract_1e_soc(f1e, fcivec, norb, nelec):
         ci0 = numpy.dot(f1e.reshape(-1), t1.reshape(-1,na*nb))
         fcinew[goffset:goffset+na*nb] = ci0.reshape(-1)
 	goffset += na*nb   
- 
+
     return fcinew.reshape(fcivec.shape)
 
 
@@ -263,7 +263,7 @@ def kernel(h1e, hsoc, g2e, norb, nelec):
 
     def hop(c):
         hc = contract_2e_soc(h2e, c, norb, nelec) + contract_1esoc_soc(hsoc,c,norb,nelec)
-        return hc.reshape(-1)
+	return hc.reshape(-1)
 
     e = 0.0
     hdiag = make_hdiag_soc(h1e, g2e, norb, nelec)
@@ -273,17 +273,18 @@ def kernel(h1e, hsoc, g2e, norb, nelec):
 
     #Need to allow mixing otherwise no overlap
     #This will not be an issue with SOC switched on	
+    
     goffset = 0
     for neleca in range(nelec+1):
 	nelecb = nelec - neleca
 	na = cistring_soc.num_strings(norb, neleca)
 	nb = cistring_soc.num_strings(norb, nelecb)
-	ci0[goffset] = 1.
        	goffset += na*nb 
+    ci0 = numpy.random.random(goffset)
     ci0 /= numpy.linalg.norm(ci0)
 
     precond = lambda x, e, *args: x/(hdiag-e+1e-4)
-    e, c = pyscf.lib.davidson(hop, ci0.reshape(-1), precond)
+    e, c = pyscf.lib.davidson(hop, ci0.reshape(-1), precond, max_cycle=100, max_space=100, tol=1.e-15)
     return e, c
 
 
