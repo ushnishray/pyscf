@@ -290,7 +290,7 @@ def kernel(h1e, hsoc, g2e, norb, nelec):
 # dm_pq = <|p^+ q|>
 def make_rdm1(fcivec, norb, nelec, opt=None):
 
-    rdm1 = numpy.zeros((2*norb,2*norb),dtype=numpy.complex64)    
+    rdm1 = numpy.zeros((2,2,norb,norb),dtype=numpy.complex64)    
     goffset = 0
 
     for neleca in range(nelec+1):
@@ -307,14 +307,14 @@ def make_rdm1(fcivec, norb, nelec, opt=None):
 	#spin a
         for str0, tab in enumerate(link_indexa):
             for a, i, str1, sign in tab:
-                rdm1[a,i] += sign * numpy.dot(ci0[str1],ci0[str0])
+                rdm1[0,0,a,i] += sign * numpy.dot(ci0[str1].conjugate(),ci0[str0])
         
 	#sector b,b
 	#spin b
 	for str0, tab in enumerate(link_indexb):
             for k in range(na):
                 for a, i, str1, sign in tab:
-                    rdm1[norb+a,norb+i] += sign * ci0[k,str1]*ci0[k,str0]
+                    rdm1[1,1,a,i] += sign * ci0[k,str1].conjugate()*ci0[k,str0]
 
 	#sector a,b
 	if(nelecb>0):	
@@ -324,11 +324,10 @@ def make_rdm1(fcivec, norb, nelec, opt=None):
             nnb = cistring_soc.num_strings(norb, nelecb-1)
             ciT = fcivec[goffset+na*nb:goffset+na*nb+nna*nnb].reshape(nna,nnb)
             for str0, tab in enumerate(link_indexa):
-                for a, i, target, sign in tab:
-		    for tstr in vv[str0]:
+                for loc, (a, i, target, sign) in enumerate(tab):
 		    #print a,i,target,sign, str0, vv[str0], ci0[tstr,str0], ciT[target[0],target[1]]
-		        rdm1[a,norb+i] += sign * ci0[tstr,str0] * ciT[target[0],target[1]]
-
+                    tstr = vv[str0][loc]
+                    rdm1[0,1,a,i] += sign * ci0[tstr,str0] * ciT[target[0],target[1]].conjugate()
 
 	if(neleca>0):
 	    #c+_b c_a
@@ -337,9 +336,10 @@ def make_rdm1(fcivec, norb, nelec, opt=None):
             nnb = cistring_soc.num_strings(norb, nelecb+1)
             ciT = fcivec[goffset-nna*nnb:goffset].reshape(nna,nnb)
             for str0, tab in enumerate(link_indexb):
-                for a, i, target, sign in tab:
-                    for tstr in vv[str0]:
-     		        rdm1[a+norb,i] += sign * ci0[str0,tstr] * ciT[target[0],target[1]]
+                for loc, (a, i, target, sign) in enumerate(tab):
+                    #for tstr in vv[str0]:
+                    tstr = vv[str0][loc]
+                    rdm1[1,0,a,i] += sign * ci0[str0,tstr] * ciT[target[0],target[1]].conjugate()
 	
 	goffset += na*nb   
  
@@ -347,40 +347,80 @@ def make_rdm1(fcivec, norb, nelec, opt=None):
 
 # dm_pq,rs = <|p^+ q r^+ s|>
 def make_rdm12(fcivec, norb, nelec, opt=None):
-    link_index = gen_linkstr_index(range(norb), nelec//2)
-    na = num_strings(norb, nelec//2)
-    fcivec = fcivec.reshape(na,na)
 
-    rdm1 = numpy.zeros((norb,norb),dtype=numpy.complex64)
-    rdm2 = numpy.zeros((norb,norb,norb,norb))
-    for str0, tab in enumerate(link_index):
-        t1 = numpy.zeros((na,norb,norb),dtype=numpy.complex64)
-        for a, i, str1, sign in link_index[str0]:
-            for k in range(na):
-                t1[k,i,a] += sign * fcivec[str1,k]
+    goffset = 0
+    t1 = numpy.zeros((2,2,len(fcivec),norb,norb),dtype=numpy.complex64)
+    for neleca in range(nelec+1):
+        nelecb = nelec - neleca
 
-        for k, tab in enumerate(link_index):
+        link_indexa = cistring_soc.gen_linkstr_index_o0(range(norb), neleca)
+        link_indexb = cistring_soc.gen_linkstr_index_o0(range(norb), nelecb)
+        
+        na = cistring_soc.num_strings(norb, neleca)
+        nb = cistring_soc.num_strings(norb, nelecb)
+        ci0 = fcivec[goffset:goffset+na*nb].reshape(na,nb)
+        
+        #sector a,a
+        #spin a
+        for str0, tab in enumerate(link_indexa):
             for a, i, str1, sign in tab:
-                t1[k,i,a] += sign * fcivec[str0,str1]
+                for k in range(nb):
+                    t1[0,0,goffset+str1*nb+k,a,i] += sign * ci0[str0,k]
+        
+        #sector b,b
+        #spin b
+        for str0, tab in enumerate(link_indexb):
+            for a, i, str1, sign in tab:
+                for k in range(na):
+                    t1[1,1,goffset+k*nb+str1,a,i] += sign * ci0[k,str0]
 
-        rdm1 += numpy.einsum('m,mij->ij', fcivec[str0], t1)
-        # i^+ j|0> => <0|j^+ i, so swap i and j
-        rdm2 += numpy.einsum('mij,mkl->jikl', t1, t1)
-    return reorder_rdm(rdm1, rdm2)
-
-
-def reorder_rdm(rdm1, rdm2):
-    '''reorder from rdm2(pq,rs) = <E^p_q E^r_s> to rdm2(pq,rs) = <e^{pr}_{qs}>.
-    Although the "reoredered rdm2" is still in Mulliken order (rdm2[e1,e1,e2,e2]),
-    it is the right 2e DM (dotting it with int2e gives the energy of 2e parts)
-    '''
-    nmo = rdm1.shape[0]
-    if inplace:
-        rdm2 = rdm2.reshape(nmo,nmo,nmo,nmo)
-    else:
-        rdm2 = rdm2.copy().reshape(nmo,nmo,nmo,nmo)
-    for k in range(nmo):
-        rdm2[:,k,k,:] -= rdm1
+        #sector a,b
+        if(nelecb>0):    
+            #c+_a c_b
+            link_indexa, vv = cistring_soc.gen_linkstr_index_o0_soc(range(norb), neleca, nelecb, 0)
+            nna = cistring_soc.num_strings(norb, neleca+1)
+            nnb = cistring_soc.num_strings(norb, nelecb-1)
+            
+            for str0b, tab in enumerate(link_indexa):
+                for loc, (a, i, target, sign) in enumerate(tab):
+                        str0a = vv[str0][loc]
+                        #print a,i,target,sign, str0, vv[str0], ci0[tstr,str0], ciT[target[0],target[1]]
+                        targetloc = goffset + na*nb + nnb*target[0] + target[1]
+                        t1[0,1,targetloc,a,i] += sign*ci0[str0a,str0b]
+                          
+        if(neleca>0):
+            #c+_b c_a
+            link_indexb,vv = cistring_soc.gen_linkstr_index_o0_soc(range(norb), neleca, nelecb, 1)
+            nna = cistring_soc.num_strings(norb, neleca-1)
+            nnb = cistring_soc.num_strings(norb, nelecb+1)
+            
+            for str0a, tab in enumerate(link_indexb):
+                for loc, (a, i, target, sign) in enumerate(tab):
+                        str0b = vv[str0][loc]
+                        targetloc = goffset-nna*nnb+nnb*target[0]+target[1]
+                        t1[1,0,targetloc,a,i] += sign * ci0[str0a,str0b]
+    
+        goffset += na*nb   
+    
+    
+    #Now construct the different sectors for rdm2
+    rdm1 = numpy.zeros((2,2,norb,norb),dtype=numpy.complex64)    
+    rdm2 = numpy.zeros((2,2,2,2,norb,norb,norb,norb),dtype=numpy.complex64)    
+    
+    for a in range(2):
+        for b in range(2):
+            rdm1[a,b] = numpy.einsum('m,mij->ij', fcivec.conjugate(), t1[a,b]) 
+            for c in range(2):
+                for d in range(2):
+                    rdm2[a,b,c,d] = numpy.einsum('mij,mkl->jikl',t1[a,b].conjugate(),t1[c,d])
+    
+    #Remove additional contribution
+    for a in range(2):
+        for b in range(2):
+            for c in range(2):
+                for k in range(norb):
+                    rdm2[a,b,b,c,:,k,k,:] -= rdm1[a,c]
+    
     return rdm1, rdm2
 
 
