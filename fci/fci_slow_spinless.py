@@ -50,6 +50,8 @@ def absorb_h1e(h1e, g2e, norb, nelec, fac=1):
 #   h2e = pyscf.ao2mo.restore(1, eri, norb)
     f1e = h1e - numpy.einsum('jiik->jk', g2e) * .5
     f1e = f1e * (1./(nelec+1e-100))
+    f1e = f1e.astype(numpy.complex128)
+	
     for k in range(norb):
         h2e[k,k,:,:] += f1e
         h2e[:,:,k,k] += f1e
@@ -73,18 +75,20 @@ def make_hdiag(h1e, g2e, norb, nelec, opt=None):
 
 def kernel(h1e, g2e, norb, nelec):
 
-    h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)    
     na = cistring.num_strings(norb, nelec)
+   
+    h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)    
+	    
+    def hop(c):
+	hc = contract_2e(h2e, c, norb, nelec)
+	return hc.reshape(-1)
+    hdiag = make_hdiag(h1e, g2e, norb, nelec)
+    precond = lambda x, e, *args: x/(hdiag-e+1e-4)
     
     ci0 = numpy.random.random(na)
     ci0 /= numpy.linalg.norm(ci0)
 
-    def hop(c):
-        hc = contract_2e(h2e, c, norb, nelec)
-        return hc.reshape(-1)
-    hdiag = make_hdiag(h1e, g2e, norb, nelec)
-    precond = lambda x, e, *args: x/(hdiag-e+1e-4)
-#    e, c = pyscf.lib.davidson(hop, ci0, precond, max_space=100)
+    #e, c = pyscf.lib.davidson(hop, ci0, precond, max_space=100)
     e, c = pyscf.lib.davidson(hop, ci0, precond)
     return e, c
 
