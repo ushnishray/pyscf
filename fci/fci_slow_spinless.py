@@ -12,7 +12,7 @@ def contract_1e(f1e, fcivec, norb, nelec):
     link_indexa = cistring.gen_linkstr_index_o0(range(norb), nelec)
     na = cistring.num_strings(norb, nelec)
     
-    t1 = numpy.zeros((norb,norb,na),dtype=numpy.complex64)
+    t1 = numpy.zeros((norb,norb,na),dtype=numpy.complex128)
     for str0, tab in enumerate(link_indexa):
         for a, i, str1, sign in tab:
             t1[a,i,str1] += sign * fcivec[str0]
@@ -27,14 +27,14 @@ def contract_2e(eri, fcivec, norb, nelec, opt=None):
     na = cistring.num_strings(norb, nelec)
 
     ci0 = fcivec
-    t1 = numpy.zeros((norb,norb,na),dtype=numpy.complex64)
+    t1 = numpy.zeros((norb,norb,na),dtype=numpy.complex128)
     for str0, tab in enumerate(link_indexa):
         for a, i, str1, sign in tab:
             t1[a,i,str1] += sign * ci0[str0]
 
     t1 = numpy.dot(eri.reshape(norb*norb,-1), t1.reshape(norb*norb,-1))
     t1 = t1.reshape(norb,norb,na)
-    fcinew = numpy.zeros_like(ci0,dtype=numpy.complex64)
+    fcinew = numpy.zeros_like(ci0,dtype=numpy.complex128)
     for str0, tab in enumerate(link_indexa):
         for a, i, str1, sign in tab:
             fcinew[str1] += sign * t1[a,i,str0]
@@ -45,7 +45,7 @@ def contract_2e(eri, fcivec, norb, nelec, opt=None):
 def absorb_h1e(h1e, g2e, norb, nelec, fac=1):
     '''Modify 2e Hamiltonian to include 1e Hamiltonian contribution.
     '''
-    h2e = g2e.copy().astype(numpy.complex64) 
+    h2e = g2e.copy().astype(numpy.complex128) 
 #   Expect g2e in full form
 #   h2e = pyscf.ao2mo.restore(1, eri, norb)
     f1e = h1e - numpy.einsum('jiik->jk', g2e) * .5
@@ -94,7 +94,7 @@ def make_rdm1(fcivec, norb, nelec, opt=None):
     link_index = cistring.gen_linkstr_index(range(norb), nelec)
     na = cistring.num_strings(norb, nelec)
     #fcivec = fcivec.reshape(na,na)
-    rdm1 = numpy.zeros((norb,norb),dtype=numpy.complex64)
+    rdm1 = numpy.zeros((norb,norb),dtype=numpy.complex128)
     
     for str0, tab in enumerate(link_index):
         for a, i, str1, sign in link_index[str0]:
@@ -109,9 +109,9 @@ def make_rdm12(fcivec, norb, nelec, opt=None):
     link_index = cistring.gen_linkstr_index(range(norb), nelec)
     na = cistring.num_strings(norb, nelec)
 
-    rdm1 = numpy.zeros((norb,norb),dtype=numpy.complex64)
-    rdm2 = numpy.zeros((norb,norb,norb,norb), dtype=numpy.complex64)
-    t1 = numpy.zeros((na,norb,norb),dtype=numpy.complex64)
+    rdm1 = numpy.zeros((norb,norb),dtype=numpy.complex128)
+    rdm2 = numpy.zeros((norb,norb,norb,norb), dtype=numpy.complex128)
+    t1 = numpy.zeros((na,norb,norb),dtype=numpy.complex128)
     for str0, tab in enumerate(link_index):     
         for a, i, str1, sign in link_index[str0]:
             t1[str1,i,a] += sign * fcivec[str0]
