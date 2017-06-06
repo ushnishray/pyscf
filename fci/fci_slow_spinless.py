@@ -6,6 +6,8 @@
 import numpy
 import pyscf.lib
 from pyscf.fci import cistring
+from pycallgraph import PyCallGraph
+from pycallgraph.output import GraphvizOutput
 
 def contract_1e(f1e, fcivec, norb, nelec):
     
@@ -21,10 +23,10 @@ def contract_1e(f1e, fcivec, norb, nelec):
     return fcinew.reshape(fcivec.shape)
 
 
-def contract_2e(eri, fcivec, norb, nelec, opt=None):
+def contract_2e(eri, fcivec, norb, nelec, link_indexa, na, opt=None):
     
-    link_indexa = cistring.gen_linkstr_index_o0(range(norb), nelec)
-    na = cistring.num_strings(norb, nelec)
+    #link_indexa = cistring.gen_linkstr_index_o0(range(norb), nelec)
+    #na = cistring.num_strings(norb, nelec)
 
     ci0 = fcivec
     t1 = numpy.zeros((norb,norb,na),dtype=numpy.complex128)
@@ -79,8 +81,11 @@ def kernel(h1e, g2e, norb, nelec):
    
     h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)    
 	    
+    link_indexa = cistring.gen_linkstr_index_o0(range(norb), nelec)
+    na = cistring.num_strings(norb, nelec)
+
     def hop(c):
-	hc = contract_2e(h2e, c, norb, nelec)
+	hc = contract_2e(h2e, c, norb, nelec, link_indexa, na)
 	return hc.reshape(-1)
     hdiag = make_hdiag(h1e, g2e, norb, nelec)
     precond = lambda x, e, *args: x/(hdiag-e+1e-4)
@@ -89,7 +94,10 @@ def kernel(h1e, g2e, norb, nelec):
     ci0 /= numpy.linalg.norm(ci0)
 
     #e, c = pyscf.lib.davidson(hop, ci0, precond, max_space=100)
-    e, c = pyscf.lib.davidson(hop, ci0, precond)
+
+    with PyCallGraph(output=GraphvizOutput()):
+        e, c = pyscf.lib.davidson(hop, ci0, precond)
+
     return e, c
 
 
