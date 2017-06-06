@@ -147,21 +147,25 @@ if __name__ == '__main__':
     from pyscf import scf
     from pyscf import ao2mo
 
-    h1e = numpy.zeros([4,4]) 
-    for i in range(0,4):
+    L = 5
+    N = 2
+
+    h1e = numpy.zeros([L,L]) 
+    for i in range(0,L):
 	h1e[i,i] = 0.01
  	h1e[i,(i+1)%4] = -1.0
  	h1e[i,(i-1)%4] = -1.0
 
-    eri = numpy.zeros([4,4,4,4])
-    for i in range(0,4):
+    eri = numpy.zeros([L,L,L,L])
+    for i in range(0,L):
  	j = (i+1)%4
-        eri[i,j,i,j] = 0.0
+        eri[i,j,i,j] = 1.0
 
-    e1,c = kernel(h1e, eri, 4, 2)
+    e1,c = kernel(h1e, eri, L, N)
    
     print "xxxxxxxxxxxxxxxxxxx" 
     print e1
+    print "Energy per particle: ",e1/N
     print c
 
 
