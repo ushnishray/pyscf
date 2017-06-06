@@ -143,8 +143,11 @@ def kernel(h1e, g2e, norb, nelec):
     na = cistring.num_strings(norb, nelec)   
     h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)    
 
+    link_indexa = cistring.gen_linkstr_index(range(norb), nelec)
+    link_indexb = cistring.gen_linkstr_index(range(norb), 0)
+
     def hop(c):
-	hc = contract_2e(h2e, c, norb, nelec, link_indexa, na)
+	hc = contract_2e(h2e, c, norb, nelec, (link_indexa,link_indexb))
 	return hc.reshape(-1)
     hdiag = make_hdiag(h1e, g2e, norb, nelec)
     precond = lambda x, e, *args: x/(hdiag-e+1e-4)
