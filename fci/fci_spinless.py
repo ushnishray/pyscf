@@ -156,7 +156,7 @@ def kernel(h1e, g2e, norb, nelec):
     ci0 /= numpy.linalg.norm(ci0)
 
     #with PyCallGraph(output=GraphvizOutput()):
-    e, c = pyscf.lib.davidson(hop, ci0, precond)
+    e, c = pyscf.lib.davidson(hop, ci0, precond, max_cycle=200)
     #e, c = pyscf.lib.davidson(hop, ci0, precond, max_space=100)
 
     return e, c

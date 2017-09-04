@@ -384,7 +384,7 @@ def make_rdm12(fcivec, norb, nelec, opt=None):
             
             for str0b, tab in enumerate(link_indexa):
                 for loc, (a, i, target, sign) in enumerate(tab):
-                        str0a = vv[str0][loc]
+                        str0a = vv[str0b][loc]
                         #print a,i,target,sign, str0, vv[str0], ci0[tstr,str0], ciT[target[0],target[1]]
                         targetloc = goffset + na*nb + nnb*target[0] + target[1]
                         t1[0,1,targetloc,a,i] += sign*ci0[str0a,str0b]
@@ -397,7 +397,7 @@ def make_rdm12(fcivec, norb, nelec, opt=None):
             
             for str0a, tab in enumerate(link_indexb):
                 for loc, (a, i, target, sign) in enumerate(tab):
-                        str0b = vv[str0][loc]
+                        str0b = vv[str0a][loc]
                         targetloc = goffset-nna*nnb+nnb*target[0]+target[1]
                         t1[1,0,targetloc,a,i] += sign * ci0[str0a,str0b]
     
