@@ -138,7 +138,7 @@ def make_hdiag(h1e, g2e, norb, nelec, opt=None):
 
     return numpy.array(hdiag)
 
-def kernel(h1e, g2e, norb, nelec):
+def kernel(h1e, g2e, norb, nelec, ci = None, cycles = 500):
 
     na = cistring.num_strings(norb, nelec)   
     h2e = absorb_h1e(h1e, g2e, norb, nelec, .5)    
@@ -152,11 +152,14 @@ def kernel(h1e, g2e, norb, nelec):
     hdiag = make_hdiag(h1e, g2e, norb, nelec)
     precond = lambda x, e, *args: x/(hdiag-e+1e-4)
     
-    ci0 = numpy.random.random(na)
-    ci0 /= numpy.linalg.norm(ci0)
+    if(ci is None):
+        ci0 = numpy.random.random(na)
+        ci0 /= numpy.linalg.norm(ci0)
+    else:
+        ci0 = ci
 
     #with PyCallGraph(output=GraphvizOutput()):
-    e, c = pyscf.lib.davidson(hop, ci0, precond, max_cycle=200)
+    e, c = pyscf.lib.davidson(hop, ci0, precond, max_cycle=cycles)
     #e, c = pyscf.lib.davidson(hop, ci0, precond, max_space=100)
 
     return e, c
